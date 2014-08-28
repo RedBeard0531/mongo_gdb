@@ -1,0 +1,18 @@
+A set of gdb pretty printers for objects in the MongoDB source code.
+
+If you find the need to bypass the printers and look at the raw fields, use
+the /r flag to print.
+
+To use add the following lines to your .gdbinit, adjusting the path as needed:
+
+python
+import sys
+import os
+try:
+    sys.path.insert(0, os.path.expanduser('~/10gen/mongo_gdb/'))
+    import mongo_printer
+    mongo_printer.register_mongo_printers()
+except Exception:
+    print "Error loading mongo_printer"
+    pass
+end
