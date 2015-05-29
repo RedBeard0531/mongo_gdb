@@ -74,7 +74,7 @@ class BSONObjPrinter:
         self.val = val
 
     def to_string(self):
-        ownership = "owned" if self.val['_holder']['px'] else "unonwed"
+        ownership = "owned" if self.val['_ownedBuffer']['_holder']['px'] else "unonwed"
         ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
         size = ptr.cast(gdb.lookup_type('int').pointer()).dereference()
 
