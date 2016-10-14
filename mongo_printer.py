@@ -7,6 +7,11 @@ class StringMapPrinter:
     def __init__(self, val):
         self.val = val
 
+        # This is kinda gross, but it seems like the only way to get at value_type's type.
+        valueTypeName = val.type.unqualified().target().name + "::value_type"
+        valueType = gdb.lookup_type(valueTypeName).target()
+        self.valueTypeRef = valueType.reference()
+
     def display_hint (self):
         return 'map'
 
@@ -25,8 +30,9 @@ class StringMapPrinter:
             if not elt['used']:
                 continue
 
-            yield ('k'+str(it), elt['data']['first'])
-            yield ('v'+str(it), elt['data']['second'])
+            value = elt['data'].reference().reinterpret_cast(self.valueTypeRef).dereference()
+            yield ('k'+str(it), value['first'])
+            yield ('v'+str(it), value['second'])
 
 class StatusPrinter:
     OK = 0 # ErrorCodes::OK
@@ -74,7 +80,7 @@ class BSONObjPrinter:
         self.val = val
 
     def to_string(self):
-        ownership = "owned" if self.val['_ownedBuffer']['_holder']['px'] else "unonwed"
+        ownership = "owned" if self.val['_ownedBuffer']['_buffer']['_holder']['px'] else "unowned"
         ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
         size = ptr.cast(gdb.lookup_type('int').pointer()).dereference()
 
