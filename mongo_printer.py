@@ -3,6 +3,14 @@ import gdb.printing
 
 import struct
 
+try:
+    import bson
+    import collections
+    from bson.codec_options import CodecOptions
+    import pprint
+except ImportError:
+    bson = None
+
 class StringMapPrinter:
     def __init__(self, val):
         self.val = val
@@ -91,7 +99,18 @@ class BSONObjPrinter:
         if size == 5:
             return "%s empty BSONObj @ %s"%(ownership, ptr)
         else:
-            return "%s BSONObj %s bytes @ %s"%(ownership, size, ptr)
+            if bson is not None:
+                inferior = gdb.selected_inferior()
+                buf = bytes(inferior.read_memory(ptr, size))
+                try:
+                    options = CodecOptions(document_class=collections.OrderedDict)
+                    bsondoc = bson.BSON.decode(buf, codec_options=options)
+                    return "%s BSONObj %s bytes @ %s: %s" % (
+                        ownership, size, ptr, pprint.pformat(bsondoc))
+                except Exception as e:
+                    return "%s BSONObj %s bytes @ %s: error decoding (%s)"%(ownership, size, ptr, e)
+            else:
+                return "%s BSONObj %s bytes @ %s"%(ownership, size, ptr)
 
 def register_mongo_printers():
     pp = gdb.printing.RegexpCollectionPrettyPrinter("mongo")
