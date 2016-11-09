@@ -86,19 +86,16 @@ class StringDataPrinter:
 class BSONObjPrinter:
     def __init__(self, val):
         self.val = val
-
-    def get_metadata_for_doc(self):
-        ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
-        return (ptr, ptr.cast(gdb.lookup_type('int').pointer()).dereference())
+        self.ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
+        self.size = self.ptr.cast(gdb.lookup_type('int').pointer()).dereference()
 
     def display_hint(self):
         return 'map'
 
     def children(self):
-        ptr, size = self.get_metadata_for_doc()
         if bson is not None:
             inferior = gdb.selected_inferior()
-            buf = bytes(inferior.read_memory(ptr, size))
+            buf = bytes(inferior.read_memory(self.ptr, self.size))
             options = CodecOptions(document_class=collections.OrderedDict)
             bsondoc = bson.BSON.decode(buf, codec_options=options)
             index = 0
@@ -108,16 +105,16 @@ class BSONObjPrinter:
 
     def to_string(self):
         ownership = "owned" if self.val['_ownedBuffer']['_buffer']['_holder']['px'] else "unowned"
-        ptr, size = self.get_metadata_for_doc()
 
+        size = self.size
         if size < 5 or size > 17*1024*1024:
             #print invalid sizes in hex as they may be sentinel bytes.
             size = hex(size)
 
         if size == 5:
-            return "%s empty BSONObj @ %s"%(ownership, ptr)
+            return "%s empty BSONObj @ %s"%(ownership, self.ptr)
         else:
-            return "%s BSONObj %s bytes @ %s"%(ownership, size, ptr)
+            return "%s BSONObj %s bytes @ %s"%(ownership, size, self.ptr)
 
 def register_mongo_printers():
     pp = gdb.printing.RegexpCollectionPrettyPrinter("mongo")
