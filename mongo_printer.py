@@ -5,9 +5,9 @@ import struct
 
 try:
     import bson
+    import bson.json_util
     import collections
     from bson.codec_options import CodecOptions
-    import pprint
 except ImportError:
     bson = None
 
@@ -87,10 +87,28 @@ class BSONObjPrinter:
     def __init__(self, val):
         self.val = val
 
+    def get_metadata_for_doc(self):
+        ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
+        return (ptr, ptr.cast(gdb.lookup_type('int').pointer()).dereference())
+
+    def display_hint(self):
+        return 'map'
+
+    def children(self):
+        ptr, size = self.get_metadata_for_doc()
+        if bson is not None:
+            inferior = gdb.selected_inferior()
+            buf = bytes(inferior.read_memory(ptr, size))
+            options = CodecOptions(document_class=collections.OrderedDict)
+            bsondoc = bson.BSON.decode(buf, codec_options=options)
+            index = 0
+            for k, v in bsondoc.items():
+                yield 'key', k
+                yield 'value', bson.json_util.dumps(v)
+
     def to_string(self):
         ownership = "owned" if self.val['_ownedBuffer']['_buffer']['_holder']['px'] else "unowned"
-        ptr = self.val['_objdata'].cast(gdb.lookup_type('void').pointer())
-        size = ptr.cast(gdb.lookup_type('int').pointer()).dereference()
+        ptr, size = self.get_metadata_for_doc()
 
         if size < 5 or size > 17*1024*1024:
             #print invalid sizes in hex as they may be sentinel bytes.
@@ -99,18 +117,7 @@ class BSONObjPrinter:
         if size == 5:
             return "%s empty BSONObj @ %s"%(ownership, ptr)
         else:
-            if bson is not None:
-                inferior = gdb.selected_inferior()
-                buf = bytes(inferior.read_memory(ptr, size))
-                try:
-                    options = CodecOptions(document_class=collections.OrderedDict)
-                    bsondoc = bson.BSON.decode(buf, codec_options=options)
-                    return "%s BSONObj %s bytes @ %s: %s" % (
-                        ownership, size, ptr, pprint.pformat(bsondoc))
-                except Exception as e:
-                    return "%s BSONObj %s bytes @ %s: error decoding (%s)"%(ownership, size, ptr, e)
-            else:
-                return "%s BSONObj %s bytes @ %s"%(ownership, size, ptr)
+            return "%s BSONObj %s bytes @ %s"%(ownership, size, ptr)
 
 def register_mongo_printers():
     pp = gdb.printing.RegexpCollectionPrettyPrinter("mongo")
